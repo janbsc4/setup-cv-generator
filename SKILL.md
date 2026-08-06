@@ -45,10 +45,12 @@ the system. It defines the portable file contract and the framework adapters.
 5. Keep contact details and portrait local. Ignore the real private-data file,
    provide an example file, validate it before build, and confirm it is not
    staged.
-6. Install the PDF verification dependencies from the reference. Keep
-   Playwright and its Chromium browser in the project's development toolchain;
-   check for Poppler's command-line tools and install the platform package with
-   the user's approval when it is absent.
+6. Choose the smallest PDF adapter justified by the repository's operating
+   environment. For a deliberately macOS-local workflow, prefer the native
+   Swift/WebKit/PDFKit adapter in the reference when Apple developer tools are
+   already present. For cross-platform or CI workflows, use the portable
+   Playwright/Poppler adapter. Obtain approval before installing system
+   packages or downloading browser runtimes.
 7. Add one dedicated CV command. It validates data before generation and
    exposes `build`, locale-aware `preview`, and `verify` operations without
    changing the repository's default build or navigation. `verify` must
