@@ -67,8 +67,9 @@ package manager, or language.
 
 Name the dedicated command for the repository's conventions (for example,
 `bin/cv`, `npm run cv`, or `make cv`). It must validate before generation,
-provide a locale-aware preview when the environment supports it, and expose a
-`verify` operation that generates and verifies the PDF.
+provide a locale-aware preview when the environment supports it, and expose
+`check` and `verify` operations. `check` quickly measures print layout without
+claiming PDF verification; `verify` generates and independently tests the PDF.
 
 ## Verification dependencies
 
@@ -111,12 +112,21 @@ boundaries, never after the final content. Hide screen controls in print and
 preserve background colour. Keep controls usable on a narrow screen even when
 the paper preview itself scrolls horizontally.
 
-The fit script measures after fonts and images resolve. It reports clipping and
-awkward page breaks at the normal density. Apply a bounded compact density only
-when the user wants a denser design, not automatically to force a target page
-count. Its outcome is informational: call `window.print()` after measuring even
-if the layout may be imperfect. Never turn an imperfect measurement into a
-print block.
+The fit script measures after fonts and images resolve. Mark each major section
+with a stable selector such as `data-cv-section`. For every locale, calculate
+the projected page count from the configured printable page height and report
+each major section whose top and bottom fall on different pages. Run this
+`<cv-command> check` probe as soon as real content and baseline print CSS exist,
+before typography and spacing are polished, and repeat it after material
+content or layout changes. Its output must distinguish a normal multi-page flow
+from a major-section split so the user can judge whether a deliberate break is
+better.
+
+The fit script also reports clipping and awkward page breaks at the normal
+density. Apply a bounded compact density only when the user wants a denser
+design, not automatically to force a target page count. Its outcome is
+informational: call `window.print()` after measuring even if the layout may be
+imperfect. Never turn an imperfect measurement into a print block.
 
 Label screen-only geometry honestly, for example “Fit looks safe; PDF not
 verified.” The page may display “PDF verified” only when `verify` has tested an
@@ -157,6 +167,7 @@ multi-page CV is valid when its content requires those pages.
 cp curriculum/private.example.yml curriculum/private.yml
 # Edit curriculum/data/, curriculum/private.yml, and curriculum/assets/.
 <cv-command> build
+<cv-command> check
 <cv-command> verify
 <cv-command> preview <locale>
 <host-build-command>

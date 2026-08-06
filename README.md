@@ -11,10 +11,12 @@ career content, contact details, and a portrait without changing templates or
 application code.
 
 > **Important — install the skill outside the website repository.** Keep this
-> Git checkout in your agent's skills directory (for example,
-> `~/.agents/skills/setup-cv-generator`) and run it against the website
-> repository. Cloning it inside that repository creates an embedded Git
-> repository, which can be staged as a Gitlink instead of normal source files.
+> Git checkout in your agent's skills directory. On macOS, use
+> `/Users/<username>/.agents/skills/setup-cv-generator` by default; on other
+> systems, use `$HOME/.agents/skills/setup-cv-generator`. Run it against the
+> website repository. Cloning it inside that repository creates an embedded
+> Git repository, which can be staged as a Gitlink instead of normal source
+> files.
 
 ## What it creates
 
@@ -39,8 +41,8 @@ edits day to day.
 
 It also adds one dedicated command appropriate to the repository, such as
 `bin/cv`, `npm run cv`, or `make cv`. That command validates the CV data,
-generates and verifies the PDF, and, where supported, provides a locale-aware
-preview.
+checks projected pagination and major-section splits early, generates and
+verifies the PDF, and, where supported, provides a locale-aware preview.
 
 ## How it works
 
@@ -58,14 +60,16 @@ preview.
    Git; an example file explains the required shape.
 6. It installs Playwright/Chromium as project development tooling and checks
    for Poppler's PDF utilities (asking before a system-package install).
-7. It validates every locale, generates and independently checks the actual
+7. Once real content first renders, it runs a fast print-layout check for every
+   locale. The check reports projected page count and names any major section
+   that crosses a page boundary, before visual polishing makes rework costly.
+8. It validates every locale, generates and independently checks the actual
    PDF, renders every sheet for inspection, runs the host project's relevant
    build, checks the diff, and reports what was verified.
 
-Before doing CV work, the skill compares its installed revision with
-`origin/main`. If a newer revision exists, it asks before updating; it never
-updates itself automatically. An unavailable remote or network only makes that
-check advisory, so CV work can continue.
+The skill checks `origin/main` only when the user specifically asks to update
+the skill. If a newer revision exists, it asks before changing the installed
+copy. Ordinary CV work does not contact the remote or run an update check.
 
 ## Print and accessibility contract
 
@@ -80,9 +84,10 @@ CV into one page.
 
 On screen, it offers language switching, a fit status, and a **Print / Save as
 PDF** button. The fit check can warn about clipping or awkward page breaks, but
-printing always continues through the browser's native print dialog. The status
-distinguishes advisory browser geometry from a PDF actually verified by the
-command.
+printing always continues through the browser's native print dialog. The same
+measurement powers an early command-line check that reports total projected
+pages and major sections split across pages. The status distinguishes advisory
+browser geometry from a PDF actually verified by the command.
 
 Playwright generates a reproducible print-CSS PDF. Poppler then checks its page
 dimensions, content-derived page count, and extracted text and renders every
@@ -99,6 +104,7 @@ for that repository. The workflow normally looks like this:
 cp curriculum/private.example.yml curriculum/private.yml
 # Edit curriculum/data/, curriculum/private.yml, and curriculum/assets/.
 <cv-command> build
+<cv-command> check
 <cv-command> verify
 <cv-command> preview <locale>
 <host-build-command>
