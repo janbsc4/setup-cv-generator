@@ -9,6 +9,12 @@ automatically published. The person maintaining it should be able to update
 career content, contact details, and a portrait without changing templates or
 application code.
 
+> **Important — install the skill outside the website repository.** Keep this
+> Git checkout in your agent's skills directory (for example,
+> `~/.agents/skills/setup-cv-generator`) and run it against the website
+> repository. Cloning it inside that repository creates an embedded Git
+> repository, which can be staged as a Gitlink instead of normal source files.
+
 ## What it creates
 
 The skill first inspects the host repository, then chooses the smallest adapter
