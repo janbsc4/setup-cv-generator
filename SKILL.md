@@ -9,6 +9,21 @@ Create a **local-first** CV. Put its editable source and supporting assets in
 `curriculum/`; reuse the host website's visual language; and keep it out of
 the default public build unless the user explicitly asks to publish it.
 
+## Update check
+
+Before any other work, identify the directory containing this `SKILL.md` and
+compare its installed Git revision with GitHub's `origin/main`:
+
+1. Run `git -C <skill-directory> rev-parse HEAD`.
+2. Run `git -C <skill-directory> ls-remote origin refs/heads/main`.
+3. If the revisions differ, tell the user that a potentially newer upstream
+   version is available at `https://github.com/janbsc4/setup-cv-generator` and
+   ask whether they want to update it. Do not update the skill automatically.
+
+Treat a missing Git remote or an unavailable network as advisory: state that
+the update check could not be completed, then continue with the requested CV
+work.
+
 Read [system.md](references/system.md) before creating, restoring, or changing
 the system. It defines the portable file contract and the framework adapters.
 
