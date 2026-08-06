@@ -8,6 +8,7 @@ it; point to them from `curriculum/README.md`.
 
 | Responsibility | Files |
 | --- | --- |
+| Paper size and orientation | `curriculum/config.yml` or equivalent host-conventional config |
 | Editable CV content | `curriculum/data/<locale>.yml` or `.json` |
 | Local contact details | `curriculum/private.yml` (ignored), `curriculum/private.example.yml` |
 | Portrait and optional local assets | `curriculum/assets/` |
@@ -94,17 +95,28 @@ hierarchy, semantic lists for timeline content, and a meaningful portrait alt
 text. The screen controls offer language switching, a live fit status, and a
 Print / Save as PDF button.
 
-Set `@page` to A4 with zero margin and put content inside a bounded sheet. Give
-the sheet a small pagination tolerance, such as 210 mm × 296 mm, rather than an
-exact 297 mm content box; the PDF page remains 210 mm × 297 mm. Apply forced
-page breaks only between sheets, never after the final sheet. Hide screen
-controls in print and preserve background colour. Keep controls usable on a
-narrow screen even when the A4 sheet itself scrolls horizontally.
+Before implementation, ask whether A4 is the correct target or whether the user
+needs another paper size or orientation, unless the request already says. Store
+that choice once and use it for `@page`, Playwright generation, verification,
+preview labels, and hand-off instructions. Support named sizes such as A4,
+Letter, or Legal and explicit dimensions for a custom target.
 
-The fit script measures after fonts and images resolve. It first tests the
-normal density, then a deliberately bounded compact density. Its outcome is
-informational: call `window.print()` after measuring even if content may
-overflow. Never turn an imperfect measurement into a print block.
+Set `@page` to the configured size with zero margin. Give page content a small
+internal safety margin, but do not constrain the complete CV to one page or
+shrink it solely to reach a preset page count. Let the normal print flow create
+additional pages when content needs them. Use `break-inside` and deliberate
+breaks to keep headings with their content and avoid splitting short entries
+awkwardly. Apply forced breaks only at meaningful document or locale
+boundaries, never after the final content. Hide screen controls in print and
+preserve background colour. Keep controls usable on a narrow screen even when
+the paper preview itself scrolls horizontally.
+
+The fit script measures after fonts and images resolve. It reports clipping and
+awkward page breaks at the normal density. Apply a bounded compact density only
+when the user wants a denser design, not automatically to force a target page
+count. Its outcome is informational: call `window.print()` after measuring even
+if the layout may be imperfect. Never turn an imperfect measurement into a
+print block.
 
 Label screen-only geometry honestly, for example “Fit looks safe; PDF not
 verified.” The page may display “PDF verified” only when `verify` has tested an
@@ -119,11 +131,11 @@ available in every status.
 
 1. validate data, build the current document, and generate a fresh PDF with
    Playwright;
-2. use print-mode DOM geometry to assert that every bounded content region is
-   inside its sheet, allowing only an explicitly documented sub-pixel
-   tolerance;
-3. use `pdfinfo` to assert the expected page count, derived from the configured
-   sheets (two for a combined bilingual CV);
+2. use print-mode DOM geometry to assert that content is not clipped and to
+   derive the pages required by the current content at the configured paper
+   size, allowing only an explicitly documented sub-pixel tolerance;
+3. use `pdfinfo` to assert the configured page dimensions and the page count
+   derived from that print layout, never a fixed one-page-per-locale rule;
 4. use `pdftotext` per page to reject nearly blank pages with a documented,
    conservative non-whitespace threshold and to find locale-specific identity,
    section, and final-entry text markers;
@@ -132,10 +144,12 @@ available in every status.
 6. exit non-zero for any failed assertion and print the PDF and rendered-image
    paths on success.
 
-Page-count and extracted-text checks inspect the PDF, while the print-mode DOM
-check catches clipping within a correctly counted page. Keep all three; one is
-not a substitute for the others. The expected text markers must come from the
-current CV data rather than private contact details or hard-coded sample copy.
+Page-size, page-count, and extracted-text checks inspect the PDF, while the
+print-mode DOM check catches clipping within correctly sized and counted pages.
+Keep all of them; one is not a substitute for the others. The expected text
+markers must come from the current CV data rather than private contact details
+or hard-coded sample copy. Report the resulting page count per locale; a
+multi-page CV is valid when its content requires those pages.
 
 ## Update guide and hand-off
 
@@ -154,7 +168,8 @@ Document the repository's actual commands and generated locations in
 Keep the real private file and output ignored. Confirm a normal host build does
 not emit the CV unless publication was explicitly requested.
 
-Advise the human to select A4, scale 100%, no margins, and background graphics
-in the native print dialog. Playwright/Poppler verification is the repeatable
-handoff gate. Native Safari or browser preview remains a separate renderer
-check, so report it only after it was actually inspected.
+Advise the human to select the configured paper size and orientation, scale
+100%, no margins, and background graphics in the native print dialog.
+Playwright/Poppler verification is the repeatable handoff gate. Native Safari
+or browser preview remains a separate renderer check, so report it only after
+it was actually inspected.
