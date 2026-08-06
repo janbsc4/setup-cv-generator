@@ -41,22 +41,30 @@ the system. It defines the portable file contract and the framework adapters.
 4. Keep contact details and portrait local. Ignore the real private-data file,
    provide an example file, validate it before build, and confirm it is not
    staged.
-5. Add one dedicated CV command. Validate data first, then produce the CV
-   pages or standalone HTML without changing the repository's default build or
-   navigation.
-6. Preserve the print contract: an exact 210 mm × 297 mm A4 sheet, zero print
-   margins, colour preservation, and controls hidden in print. An advisory
-   compact-density check may report overflow, while Print / Save as PDF always
-   invokes native printing.
-7. Validate the data and generated document for every configured locale, run
-   the host project's relevant build and `git diff --check`, and inspect the
-   output HTML. Report deterministic checks separately from native browser/PDF
+5. Install the PDF verification dependencies from the reference. Keep
+   Playwright and its Chromium browser in the project's development toolchain;
+   check for Poppler's command-line tools and install the platform package with
+   the user's approval when it is absent.
+6. Add one dedicated CV command. It validates data before generation and
+   exposes `build`, locale-aware `preview`, and `verify` operations without
+   changing the repository's default build or navigation. `verify` must
+   generate and test the actual PDF; it is not an alias for browser geometry
+   checks.
+7. Preserve the print contract: an A4 `@page`, zero print margins, colour
+   preservation, controls hidden in print, and a small pagination safety
+   margin inside each sheet. An advisory compact-density check may report
+   overflow, while Print / Save as PDF always invokes native printing.
+8. Run `verify` for the combined document or every configured locale, the host
+   project's relevant build, and `git diff --check`. Inspect the rendered page
+   images. Report generated-PDF checks separately from native Safari/browser
    print inspection.
 
 ## Completion
 
 The system is complete when the dedicated CV command validates private and
-content data, produces one page per configured locale, and leaves the host
-site's default build unchanged. A person can replace career content, contact
-details, and portrait by editing documented files under `curriculum/`, without
-editing templates or application code.
+content data, produces and verifies one PDF sheet per configured locale, and
+leaves the host site's default build unchanged. Verification fails on a wrong
+page count, a nearly blank page, missing expected text, or print-layout
+overflow. A person can replace career content, contact details, and portrait
+by editing documented files under `curriculum/`, without editing templates or
+application code.

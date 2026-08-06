@@ -65,8 +65,27 @@ package manager, or language.
   uses its tokens and locally available fonts.
 
 Name the dedicated command for the repository's conventions (for example,
-`bin/cv`, `npm run cv`, or `make cv`). It must validate before generation and
-provide a locale-aware preview when the environment supports it.
+`bin/cv`, `npm run cv`, or `make cv`). It must validate before generation,
+provide a locale-aware preview when the environment supports it, and expose a
+`verify` operation that generates and verifies the PDF.
+
+## Verification dependencies
+
+Use Playwright with Chromium as the deterministic PDF renderer. Add
+`playwright` to the existing JavaScript development dependencies and commit the
+package-manager lockfile. If the host has no JavaScript toolchain, isolate a
+small package manifest and lockfile under the generator adapter. Install the
+matching Chromium binary during setup with the package-manager equivalent of
+`npx playwright install chromium`. The PDF script must wait for fonts and every
+document image, emulate print media, and call `page.pdf()` with
+`printBackground: true` and `preferCSSPageSize: true`.
+
+Use Poppler as an independent verification layer. Require `pdfinfo`,
+`pdftotext`, and `pdftoppm`; fail setup with a direct platform-specific remedy
+when they are unavailable. On macOS the remedy is `brew install poppler`.
+Installing a system package requires the user's approval. Do not silently
+downgrade `verify` to HTML or browser measurements when a dependency is
+missing.
 
 ## Document and print contract
 
@@ -75,15 +94,48 @@ hierarchy, semantic lists for timeline content, and a meaningful portrait alt
 text. The screen controls offer language switching, a live fit status, and a
 Print / Save as PDF button.
 
-Set the physical sheet to exactly 210 mm × 297 mm, with content inside a
-bounded frame. Use `@page` A4 with zero margin; hide screen controls in print;
-and preserve background colour. Keep controls usable on a narrow screen even
-when the A4 sheet itself scrolls horizontally.
+Set `@page` to A4 with zero margin and put content inside a bounded sheet. Give
+the sheet a small pagination tolerance, such as 210 mm × 296 mm, rather than an
+exact 297 mm content box; the PDF page remains 210 mm × 297 mm. Apply forced
+page breaks only between sheets, never after the final sheet. Hide screen
+controls in print and preserve background colour. Keep controls usable on a
+narrow screen even when the A4 sheet itself scrolls horizontally.
 
 The fit script measures after fonts and images resolve. It first tests the
 normal density, then a deliberately bounded compact density. Its outcome is
 informational: call `window.print()` after measuring even if content may
 overflow. Never turn an imperfect measurement into a print block.
+
+Label screen-only geometry honestly, for example “Fit looks safe; PDF not
+verified.” The page may display “PDF verified” only when `verify` has tested an
+actual generated PDF for the current build. If the UI persists that state,
+write a generated verification manifest containing a digest of the verified
+input/output and ignore stale or mismatched manifests. Printing remains
+available in every status.
+
+## PDF verification contract
+
+`<cv-command> verify` is a hard development/handoff gate. It must:
+
+1. validate data, build the current document, and generate a fresh PDF with
+   Playwright;
+2. use print-mode DOM geometry to assert that every bounded content region is
+   inside its sheet, allowing only an explicitly documented sub-pixel
+   tolerance;
+3. use `pdfinfo` to assert the expected page count, derived from the configured
+   sheets (two for a combined bilingual CV);
+4. use `pdftotext` per page to reject nearly blank pages with a documented,
+   conservative non-whitespace threshold and to find locale-specific identity,
+   section, and final-entry text markers;
+5. use `pdftoppm` to render every page into an ignored verification directory
+   for visual inspection; and
+6. exit non-zero for any failed assertion and print the PDF and rendered-image
+   paths on success.
+
+Page-count and extracted-text checks inspect the PDF, while the print-mode DOM
+check catches clipping within a correctly counted page. Keep all three; one is
+not a substitute for the others. The expected text markers must come from the
+current CV data rather than private contact details or hard-coded sample copy.
 
 ## Update guide and hand-off
 
@@ -91,6 +143,7 @@ overflow. Never turn an imperfect measurement into a print block.
 cp curriculum/private.example.yml curriculum/private.yml
 # Edit curriculum/data/, curriculum/private.yml, and curriculum/assets/.
 <cv-command> build
+<cv-command> verify
 <cv-command> preview <locale>
 <host-build-command>
 git diff --check
@@ -102,5 +155,6 @@ Keep the real private file and output ignored. Confirm a normal host build does
 not emit the CV unless publication was explicitly requested.
 
 Advise the human to select A4, scale 100%, no margins, and background graphics
-in the native print dialog. Native preview is the final authority on one-page
-fit and clipping, so report it only after it was actually inspected.
+in the native print dialog. Playwright/Poppler verification is the repeatable
+handoff gate. Native Safari or browser preview remains a separate renderer
+check, so report it only after it was actually inspected.
