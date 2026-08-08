@@ -1,6 +1,6 @@
 ---
 name: setup-cv-generator
-description: Set up or restore a local, editable, paginated CV generator in any website repository. Use when a printable CV or PDF must target the user's chosen paper size, follow an existing site's design language, keep source content simple to update, and remain separate from the default public build.
+description: Set up or restore a local, editable, deterministic CV generator in any website repository. Use when a printable CV or PDF needs measured semantic blocks, an explicit page plan, self-contained output, a chosen paper size, the existing site's design language, and separation from the default public build.
 ---
 
 # Set up CV generator
@@ -47,12 +47,15 @@ the system. It defines the portable file contract and the framework adapters.
    configuration shared by print CSS, PDF generation, verification, and the
    update guide. Let content flow onto as many pages as it needs.
 3. Establish the `curriculum/` file contract from the reference. Use simple
-   structured content files, a private-data template, local assets, and an
-   update guide. Keep generator-specific code in the smallest appropriate
-   adapter for the host stack.
-4. Reuse the site's font loading, colour tokens, visual rhythm, and component
-   conventions. Add only the semantic CV markup, configured paper layout, and
-   optional progressive enhancement the document needs.
+   structured content files, a private-data template, local assets, one
+   explicit page plan per locale, a general update guide, and a short
+   repository-local pagination guide. Keep generator-specific code in the
+   smallest appropriate adapter for the host stack.
+4. Reuse the site's colour tokens, visual rhythm, and component conventions.
+   Vendor permitted font files locally and embed them in generated output; do
+   not depend on remote font loading for measurement or PDF generation. Add
+   only the semantic CV markup, configured paper layout, and optional
+   progressive enhancement the document needs.
 5. Keep contact details and portrait local. Ignore the real private-data file,
    provide an example file, validate it before build, and confirm it is not
    staged. Require email. Treat phone as optional: its display and `tel:` href
@@ -65,44 +68,47 @@ the system. It defines the portable file contract and the framework adapters.
    packages or downloading browser runtimes. Apply the native adapter's cache,
    bridge, AppKit lifetime, and runaway-output safeguards as one contract.
 7. Add one dedicated CV command. It validates data before generation and
-   exposes `build`, `check`, `verify`, and locale-aware `preview` operations
-   without changing the repository's default build or navigation. `check` is a
-   fast print-layout probe; `verify` generates and tests the actual PDF;
-   `preview` validates, builds the HTML, checks layout, generates and verifies
-   a fresh PDF, then opens that PDF. Advisory layout findings do not block
-   opening; a build, generation, or verification failure does.
-8. As soon as real content and baseline print CSS render, run `check` for every
-   locale, before visual polishing. Report the projected page count and name
-   every major section that crosses a page boundary. Adjust intentional break
-   rules or the design with the user when the split reads poorly. Represent
-   every forced print break with shared markup that both CSS and `check` read.
-   After resolving splits, measure the unused printable tail on every non-final
-   page. Warn above 20%, name the first following block and why it stayed off
-   the page, and attempt the semantic rebalancing sequence in the reference.
-   Preserve normal typography and spacing; retain the whitespace when moving
-   content would harm readability. Repeat after material content or layout
-   changes.
-9. Preserve the print contract: a configured `@page` size, zero print margins,
-   colour preservation, controls hidden in print, content-driven pagination,
-   and a small safety margin inside each page. Parse paper width, height,
-   orientation, and safety margin once; derive HTML/CSS, the layout probe, PDF
-   generation, verification, and documentation from that shared
-   configuration. An advisory layout check may report clipping or awkward
-   breaks, while Print / Save as PDF always invokes native printing.
-10. Run `verify` for the combined document or every configured locale, the host
-   project's relevant build, and `git diff --check`. Inspect the rendered page
-   images. Report generated-PDF checks separately from native Safari/browser
-   print inspection.
+   exposes `build`, `check`, `plan`, `verify`, and locale-aware `preview`
+   operations without changing the repository's default build or navigation.
+   `check` measures every stable pageable block, solves candidate boundaries,
+   and emits both concise prose and machine-readable JSON. `plan` persists one
+   explicitly selected candidate. `verify` generates and tests the actual PDF;
+   `preview` runs the same pipeline and opens only a verified PDF. Warnings may
+   remain advisory, but invalid data, a stale or incomplete plan, planned-page
+   overflow, generation failure, and PDF verification failure are hard stops.
+8. As soon as real content and baseline print CSS render, run the deterministic
+   paginator for every locale, before visual polishing. Review its measured
+   candidate boundaries, choose the best semantic result, and persist an
+   explicit page plan. Every pageable block must have a stable ID shared by
+   data, measurement output, page plan, and final markup. Re-run after material
+   content or layout changes; update the plan from measured candidates rather
+   than searching for CSS break rules by trial and error.
+9. Preserve one print geometry contract. Define usable page height exactly once
+   as paper height minus top and bottom content margins, and derive measurement,
+   explicit page containers, overflow checks, PDF generation, verification,
+   and documentation from that configuration. Generate self-contained HTML
+   only after the plan is accepted: place planned blocks into exact paper-sized
+   page containers, embed CSS, images, and fonts, and add a print break between
+   containers. Fail with the block ID and overflow in millimetres when any
+   planned page exceeds usable height. Keep Print / Save as PDF available.
+10. Run `verify` for every configured locale, the host project's relevant
+   build, and `git diff --check`. Render every PDF page to PNG and generate a
+   contact sheet containing all pages for one-image pagination inspection.
+   Inspect it, then report generated-PDF checks separately from native
+   Safari/browser print inspection. Treat font-size and global spacing changes
+   as deliberate design work, never as pagination-fitting mechanisms.
 
 ## Completion
 
 The system is complete when the dedicated CV command validates private and
-content data, reports projected pagination and major-section splits early,
-produces and verifies a complete PDF for every configured locale at the chosen
-paper size, opens only a successfully verified PDF from `preview`, and leaves
-the host site's default build unchanged.
-Verification fails on a page-size or content-derived page-count mismatch, an
-unintentionally blank page, missing expected text, or clipped print content.
+content data, assigns stable IDs to every pageable block, emits reproducible
+measurements and candidate boundaries, persists an explicit page plan, and
+generates self-contained paged HTML from that plan. It produces and verifies a
+complete PDF and contact sheet for every configured locale, opens only a
+successfully verified PDF from `preview`, and leaves the host site's default
+build unchanged. Verification fails on planned-page overflow, a page-size or
+planned page-count mismatch, an unintentionally blank page, missing expected
+text, clipped print content, or a missing rendered page.
 A person can replace career content, contact details, and portrait by editing
 documented files under `curriculum/`, without editing templates or application
 code.

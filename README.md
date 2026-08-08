@@ -1,6 +1,8 @@
 # Local CV generator skill
 
-`setup-cv-generator` is a skill for a coding agent. While initial setup of the CV geneator requires an agent, after initial setup the CV can be updated manually. 
+`setup-cv-generator` is a skill for a coding agent. Initial setup requires an
+agent; afterward, the CV content can be updated manually and its explicit page
+plan can be maintained through a short repository-local guide.
 
 This skill equips an existing website repository with a local,
 editable CV workflow. It produces a paginated CV PDF for the chosen paper
@@ -8,7 +10,8 @@ size while preserving the site's visual language and leaving its normal build
 and navigation alone.
 
 It is intended for a CV that is maintained alongside a site but is not
-automatically published. The person maintaining is able to update career content, contact details, and a portrait without requirent an active AI agent subscription.
+automatically published. A person can update career content, contact details,
+and a portrait without requiring an active AI agent subscription.
 
 > [!CAUTION]
 > **Important — install the skill outside the website repository.** Keep this
@@ -26,13 +29,15 @@ that fits its framework. It establishes this human-editable boundary:
 
 ```text
 curriculum/
-├── config.yml                  # chosen paper size and orientation
+├── config.yml                  # paper dimensions and content margins
 ├── data/                       # one YAML or JSON file per locale
-├── assets/                     # portrait and other local assets
+├── page-plan/                  # accepted block-to-page plan per locale
+├── assets/                     # portrait, vendored fonts, and local assets
 ├── private.example.yml          # copyable template for contact details
 ├── private.yml                  # real private details; ignored by Git
 ├── output/                      # generated local output; ignored by Git
-└── README.md                    # project-specific editing and build guide
+├── README.md                    # project-specific editing and build guide
+└── PAGINATION.md                # short guide for later maintenance agents
 ```
 
 Some frameworks require generator code or locale data in conventional
@@ -42,9 +47,10 @@ edits day to day.
 
 It also adds one dedicated command appropriate to the repository, such as
 `bin/cv`, `npm run cv`, or `make cv`. That command validates the CV data,
-checks projected pagination and major-section splits early, generates and
-verifies the PDF, and provides a locale-aware `preview` operation that opens
-the verified PDF in the platform's native viewer.
+measures stable semantic blocks, proposes candidate page boundaries, checks the
+accepted page plan, explicitly persists a selected candidate, generates and
+verifies the PDF, and provides a locale-aware `preview` operation that opens the
+verified PDF in the platform's native viewer.
 
 ## How it works
 
@@ -55,20 +61,25 @@ the verified PDF in the platform's native viewer.
 3. It creates a small CV-specific adapter: a route, template, stylesheet,
    validator, and command only where the host stack needs them.
 4. It reuses the site's typography, colour palette, spacing, and component
-   conventions, adding semantic CV markup and print styling for the configured
-   paper target.
+   conventions, while vendoring permitted font files so measurements never
+   depend on a remote font service.
 5. It separates private contact data and the portrait from the shared CV
    content. The real private-data file and generated output are ignored by
    Git; an example file explains the required shape.
 6. It chooses either a macOS-native WebKit/PDFKit adapter or a portable
    Playwright/Poppler adapter from the repository's real operating
    environment, asking before downloads or system-package installs.
-7. Once real content first renders, it runs a fast print-layout check for every
-   locale. The check reports projected page count and names any major section
-   that crosses a page boundary, before visual polishing makes rework costly.
-8. Its `preview` operation validates and builds the HTML, reports advisory
-   layout findings, generates and independently checks the actual PDF, and
-   opens that PDF only after verification succeeds.
+7. Every pageable content block receives a stable ID. Once real content first
+   renders, a deterministic paginator measures each block and emits prose plus
+   JSON with block heights, ranked candidate boundaries, and any violations.
+8. An agent chooses a semantically good candidate and persists the explicit
+   block-to-page plan. The generator then builds exact paper-sized page
+   containers and fails if a planned page overflows, naming the offending block
+   and overflow in millimetres.
+9. Its `preview` operation validates and builds self-contained HTML, reports
+   advisory balance findings, generates and independently checks the actual
+   PDF, renders every page, creates an all-pages contact sheet, and opens that
+   PDF only after verification succeeds.
 
 The skill checks `origin/main` only when the user specifically asks to update
 the skill. If a newer revision exists, it asks before changing the installed
@@ -78,25 +89,25 @@ copy. Ordinary CV work does not contact the remote or run an update check.
 
 The generated document is semantic and selectable HTML with a skip link,
 heading hierarchy, labelled controls, semantic timeline lists, and useful
-portrait alt text. It uses the configured PDF paper size with zero print
-margins, colour preservation, screen-only controls hidden on paper, and a small
-internal safety margin to avoid fractional blank-page overflow in native
-renderers. The paper size and orientation come from the setup choice. Content
-flows onto additional pages when needed; the generator does not compress every
-CV into one page.
+portrait alt text. It is a generated, self-contained artifact with embedded
+CSS, images, and locally vendored fonts; editable YAML or JSON remains the
+human-maintained source. It uses the configured PDF paper size with zero print
+margins and explicit page containers. One canonical value controls vertical
+capacity: paper height minus the configured top and bottom content margins.
 
-On screen, the HTML offers language switching, a fit status, and a **Print /
-Save as PDF** escape hatch. Routine use does not require manual browser
-printing: `preview` generates, verifies, and opens the PDF directly. The same
-measurement powers an early command-line check that reports total projected
-pages and major sections split across pages. The status distinguishes advisory
-browser geometry from a PDF actually verified by the command.
+On screen, the HTML offers language switching, status, and a **Print / Save as
+PDF** escape hatch. Routine use does not require manual browser printing:
+`preview` generates, verifies, and opens the PDF directly. `check` writes both a
+human summary and JSON containing measured block heights, accepted-page usage,
+ranked candidate boundaries, warnings, and hard failures. Typography and global
+spacing are design choices, never automatic fitting controls.
 
 The selected adapter generates a reproducible print-CSS PDF. PDFKit on the
 native path or Poppler on the portable path then checks its page dimensions,
-content-derived page count, and extracted text and renders every page for
-inspection. Verification fails for a size or page-count mismatch,
-unintentionally blank pages, missing expected text, or clipped content. Native
+page count against the accepted plan, and extracted text, renders every page,
+and composes the PNGs into one contact sheet. Verification fails for planned
+overflow, a size or page-count mismatch, unintentionally blank pages, missing
+expected text, clipped content, or missing rendered pages. Native
 Safari/browser preview remains a useful separate renderer check.
 
 ## Typical project workflow
@@ -107,14 +118,18 @@ for that repository. The workflow normally looks like this:
 ```zsh
 cp curriculum/private.example.yml curriculum/private.yml
 # Edit curriculum/data/, curriculum/private.yml, and curriculum/assets/.
+<cv-command> check <locale>
+# Review the candidate IDs, then persist one explicitly:
+<cv-command> plan <locale> --candidate <candidate-id>
 <cv-command> preview <locale>
 <host-build-command>
 git diff --check
 ```
 
-Use `build`, `check`, and `verify` separately for focused debugging or
-automation. With one configured locale, `preview` may omit the locale. With
-multiple locales, it requires one and lists the valid choices when omitted.
+Use `build`, `check`, `plan`, and `verify` separately for focused maintenance,
+debugging, or automation. With one configured locale, `preview` may omit the
+locale. With multiple locales, it requires one and lists the valid choices
+when omitted.
 
 For optional browser-print inspection, select the configured paper size and
 orientation, 100% scale, no margins, and background graphics in the system

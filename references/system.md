@@ -30,29 +30,40 @@ it; point to them from `curriculum/README.md`.
 | --- | --- |
 | Paper size and orientation | `curriculum/config.yml` or equivalent host-conventional config |
 | Editable CV content | `curriculum/data/<locale>.yml` or `.json` |
+| Accepted pagination | `curriculum/page-plan/<locale>.yml` or `.json` |
 | Local contact details | `curriculum/private.yml` (ignored), `curriculum/private.example.yml` |
-| Portrait and optional local assets | `curriculum/assets/` |
+| Portrait, licensed fonts, and optional local assets | `curriculum/assets/` |
 | Human update guide | `curriculum/README.md` |
+| Agent pagination guide | `curriculum/PAGINATION.md` |
 | Generated local output | `curriculum/output/` (ignored) or the host's ignored build output |
 | Generator adapter | Host-conventional route, template, stylesheet, script, validator, and command |
 
 Place all non-sensitive content in locale files. Use one locale when the CV is
-single-language; add one file per language when it is translated. Keep the
-same stable IDs and ordering for equivalent timeline entries across locales.
+single-language; add one file per language when it is translated. Give every
+pageable block a stable, meaningful ID and keep equivalent IDs across locales.
+This includes profile blocks, section introductions, timeline entries, skill
+groups, language items, education entries, and any other unit the paginator
+may place independently. The generator must reject missing or duplicate IDs.
 
 ## Content contract
 
 Give each locale file a shallow, readable schema containing:
 
-- `meta`, `identity`, `controls`, `contact`, and `sections` text;
-- a profile paragraph;
+- `meta`, `controls`, `contact`, and section-label text;
+- an identity block with a stable `id`;
+- a profile block with a stable `id` and text;
 - `experience` entries with stable `id`, `title`, `dates`, and `start` fields;
-- `skills` strings;
-- `languages` with `language` and `level` fields; and
+- skill groups with stable `id` values;
+- languages with stable `id`, `language`, and `level` fields; and
 - `education` entries with stable `id`, qualification, institution, dates,
   start, and end fields.
 
 Validate parseability, required meaningful text, and stable cross-locale IDs.
+Render each pageable unit with `data-cv-block-id="<id>"`; the measurement
+report, accepted page plan, generated HTML, and error messages use that same
+identifier. A block larger than usable page height is invalid: split it into
+smaller semantic blocks with new stable IDs instead of allowing an implicit
+fragment.
 Require email and validate its `mailto:` link. Phone is optional: require its
 display and href fields to be both blank or both present, validate `tel:` only
 when present, and render no telephone link when blank. Confirm that the
@@ -84,25 +95,31 @@ package manager, or language.
   the dedicated local build. Keep content parsing, print CSS, and optional fit
   script isolated from normal application bundles where the framework allows.
 - **Plain static website:** generate standalone semantic HTML in the ignored
-  output directory. Link the site's existing CSS or a small CV stylesheet that
-  uses its tokens and locally available fonts.
+  output directory. Generate its CSS from the site's tokens and embed it with
+  local assets in the output artifact.
 
 Name the dedicated command for the repository's conventions (for example,
 `bin/cv`, `npm run cv`, or `make cv`) and give it this operation contract:
 
-- `build [locale]` validates data and produces the HTML source;
-- `check [locale]` builds as needed and measures print layout without claiming
-  PDF verification;
+- `build [locale]` validates data and the accepted page plan, then produces the
+  self-contained paged HTML artifact;
+- `check [locale]` measures blocks, evaluates the accepted plan, solves
+  candidate plans, and emits matching prose and JSON without claiming PDF
+  verification;
+- `plan <locale> --candidate <candidate-id>` validates the current measurement
+  digest and explicitly persists that candidate as the accepted plan;
 - `verify [locale]` builds HTML, generates a fresh PDF, and independently tests
   that PDF; and
-- `preview [locale]` performs the build, advisory check, PDF generation, and
-  verification stages, then opens the verified PDF in the platform's native
-  viewer.
+- `preview [locale]` validates and measures, checks the accepted plan, builds
+  final HTML, generates and verifies the PDF, then opens it in the platform's
+  native viewer.
 
-Implement `preview` as one pipeline over a single fresh HTML artifact rather
-than repeatedly invoking the other subcommands. Print advisory `check`
-findings and continue; stop before opening for validation, build, generation,
-or verification failures. Open only the PDF from the current successful run.
+Implement `preview` as one pipeline over one fresh input snapshot rather than
+repeatedly invoking the other subcommands. Generate the measurement and final
+HTML artifacts through the same renderer during that pipeline. Print advisory
+`check` findings and continue; stop before opening for validation, missing or
+stale plan, planned-page overflow, build, generation, or verification failures.
+Open only the PDF from the current successful run.
 
 When exactly one locale is configured, let `preview` omit the locale. When
 several are configured, require one and list the valid values for a missing or
@@ -120,7 +137,7 @@ step.
 
 Test `preview` with a successful single-locale run without an argument, an
 explicit locale in a multilingual setup, and missing and unknown multilingual
-locale arguments. Prove that advisory layout findings still open the verified
+locale arguments. Prove that advisory balance findings still open the verified
 PDF, each hard pipeline failure prevents viewer launch, and an opener failure
 reports the preserved verified artifact.
 
@@ -225,93 +242,113 @@ Installing a system package requires the user's approval. Do not silently
 downgrade `verify` to HTML or browser measurements when a dependency is
 missing.
 
-## Document and print contract
+## Measurement and page-plan contract
 
-Render a semantic document with a skip link, labelled controls, a heading
-hierarchy, semantic lists for timeline content, and a meaningful portrait alt
-text. The screen controls offer language switching, a live fit status, and a
-Print / Save as PDF button.
+Render content from editable YAML or JSON into an ignored, unpaginated
+measurement artifact. Wait for embedded fonts and images, then measure the
+border-box height of every `data-cv-block-id` in document order. Put vertical
+spacing inside blocks or represent it as an explicit measured stack gap; do not
+let collapsing margins create unmeasured height. Use the same render functions
+and print CSS as the final document so measurement is not a second layout
+implementation.
 
-Before implementation, ask whether A4 is the correct target or whether the user
-needs another paper size or orientation, unless the request already says. Store
-paper width, height, orientation, and internal safety margin once. Generate or
-inject the corresponding CSS custom properties and `@page` rule, and use the
-same parsed values in the layout probe, PDF adapter, verification, preview
-labels, and hand-off instructions. Support named sizes such as A4, Letter, or
-Legal and explicit dimensions for a custom target. Add a fixture using custom
-dimensions so an A4 literal in any adapter causes verification to fail.
+Store paper width, paper height, orientation, and the four content margins in
+one configuration object. Define the only canonical vertical capacity as:
 
-Set `@page` to the configured size with zero margin. Give page content a small
-internal safety margin, but do not constrain the complete CV to one page or
-shrink it solely to reach a preset page count. Let the normal print flow create
-additional pages when content needs them. Use `break-inside` and deliberate
-breaks to keep headings with their content and avoid splitting short entries
-awkwardly. Apply forced breaks only at meaningful document or locale
-boundaries, never after the final content. Hide screen controls in print and
-preserve background colour. Keep controls usable on a narrow screen even when
-the paper preview itself scrolls horizontally.
+```text
+usable_page_height_mm = paper_height_mm - margin_top_mm - margin_bottom_mm
+```
 
-Keep screen and print geometry separate. When the screen preview uses a
-`min-width` wider than the configured paper, reset `html` and `body` to the
-configured page width and `min-width: 0` in both `@media print` and the
-JavaScript print-probe mode. Audit other screen-only width and scaling rules in
-both modes at the same time. Give `html`, `body`, the print canvas, and `@page`
-the same page-surface colour so exposed areas do not contrast, while treating
-an unpainted edge strip as a geometry problem first: a painted-width ratio that
-matches the screen constraint indicates shrink-to-fit. Add a regression fixture
-whose screen root is wider than the paper and assert that both print and probe
-root widths equal the configured page width.
+Every component reads that computed value; no script, CSS template, verifier,
+or guide may restate a second printable-height or safety-margin formula. Keep
+`@page` margin at zero and implement the configured content margins inside each
+explicit page container. Support named and custom paper dimensions, and use a
+custom-dimension fixture to expose hard-coded A4 assumptions.
 
-The fit script measures after fonts and images resolve. Mark each major section
-with a stable selector such as `data-cv-section`. For every locale, calculate
-the projected page count from the configured printable page height and report
-each major section whose top and bottom fall on different pages. Run this
-`<cv-command> check` probe as soon as real content and baseline print CSS exist,
-before typography and spacing are polished, and repeat it after material
-content or layout changes. Its output must distinguish a normal multi-page flow
-from a major-section split so the user can judge whether a deliberate break is
-better.
+The paginator consumes ordered block measurements plus semantic constraints
+such as `keep_with_next`, `break_allowed_after`, and optional preferred section
+boundaries. It must be deterministic for identical inputs. Produce several
+ranked candidate plans when more than one valid boundary set exists; score
+unused space and semantic penalties explicitly rather than mutating typography.
+The accepted plan is a tracked, human-readable file containing a schema
+version, locale, input digest, ordered pages, and ordered block IDs. Compute the
+digest from every measurement input: normalized content and private render
+inputs, page geometry, renderer and CSS, font bytes, asset dimensions, and the
+measurement schema. Hash private values without exposing them in the plan. For
+example:
 
-Ordinary DOM coordinates do not reflect forced print breaks. Put deliberate
-break metadata in markup, for example `data-cv-break-before="page"`; let print
-CSS select that attribute and make the probe add the corresponding virtual page
-offset.
+```yaml
+schema_version: 1
+locale: en
+input_digest: "sha256:..."
+pages:
+  - number: 1
+    blocks: [identity, profile, experience-2026]
+  - number: 2
+    blocks: [experience-2023, education, languages]
+```
 
-After modelling those breaks, calculate the unused printable height below the
-last content block on every page except the final page of each locale or
-document. More than 20% unused height is an advisory balance warning. Report
-the percentage, the first block on the following page, and whether a forced
-break, `break-inside` rule, heading keep rule, or natural overflow kept it
-there. Rebalance in this order:
+Give each candidate a stable ID within its measurement report. Require the plan
+to contain every current block exactly once and in source order. A missing
+block, duplicate block, unknown block, changed input digest,
+invalid boundary, or oversized block is a hard failure. `check` may still emit
+candidate repairs before exiting non-zero so an agent can choose and persist a
+replacement plan through the explicit `plan` operation. Never silently replace
+an accepted plan.
 
-1. remove or move an unnecessary forced break;
-2. let a long section cross the page between entries while keeping each short
-   entry intact;
-3. narrow an overly broad `break-inside: avoid` rule; and
-4. move the boundary to the next sensible semantic point.
+Emit concise prose to stdout and write the equivalent structured report to an
+ignored stable path such as `curriculum/output/check/<locale>.json`. Include at
+least:
 
-Keep each heading with its first item and avoid orphan headings, widowed lines,
-clipping, and splits inside short entries. Preserve the established font sizes
-and normal spacing; fill pages by improving content flow rather than globally
-compressing typography or stretching whitespace. When no block can move safely,
-retain the whitespace and report why it is preferable. Exercise this balance
-model with a forced break that leaves more than 20% unused height, an oversized
-`break-inside: avoid` wrapper, a section that can split cleanly between entries,
-and a case where readability requires retaining the space.
+- schema version, locale, input digest, and all paper/margin dimensions in mm;
+- the canonical usable page height;
+- each block's ID, measured height in mm, source order, and constraints;
+- the accepted plan's pages, used height, remaining height, and overflow;
+- ranked candidate boundaries with page membership, score, and reasons; and
+- hard violations and advisory balance warnings.
 
-The fit script also reports clipping and awkward page breaks at the normal
-density. Apply a bounded compact density only when the user wants a denser
-design, not automatically to force a target page count or fill a sparse page.
-Its outcome is informational: call `window.print()` after measuring even if
-the layout may be imperfect. Never turn an imperfect measurement into a print
-block.
+Use millimetres as the report and error interface, retaining enough precision
+to diagnose the boundary while applying only one documented sub-pixel
+tolerance internally. More than 20% unused height on a non-final page is an
+advisory balance warning. Planned-page overflow is always a hard failure:
+identify the page, the first offending block, and overflow in millimetres.
 
-Label screen-only geometry honestly, for example “Fit looks safe; PDF not
-verified.” The page may display “PDF verified” only when `verify` has tested an
-actual generated PDF for the current build. If the UI persists that state,
-write a generated verification manifest containing a digest of the verified
-input/output and ignore stale or mismatched manifests. Printing remains
-available in every status.
+Choose a candidate by semantic quality: keep headings with their first block,
+keep short timeline entries intact, and prefer boundaries between entries or
+major sections. Accept whitespace when moving a block would harm readability.
+Treat font size, line height, and global spacing as design inputs. Change them
+only through a separately stated design decision, then remeasure and replace
+the stale plan; never use global typography or spacing changes as fitting
+mechanisms.
+
+Exercise measurement and planning with fixtures for duplicate and missing IDs,
+a block taller than usable height, a stale plan digest, a forced semantic
+boundary, multiple ranked candidates, a page over capacity, retained
+whitespace, and custom paper dimensions.
+
+## Generated document and print contract
+
+After a plan is accepted, generate the final HTML from structured content and
+the plan. The HTML is an ignored build artifact, not the human-maintained
+source. Make it self-contained: inline its CSS and encode or embed all images
+and font files. Vendor only fonts whose licence permits repository use; when a
+site relies on Google Fonts or another remote provider, obtain and record a
+permitted local copy or choose a user-approved local fallback. Measurement,
+HTML generation, and PDF creation must make no network requests.
+
+Render one exact paper-sized `.cv-page` container per planned page and one
+content box with the configured margins and canonical usable height. Place
+blocks by ID, add a print break after every container except the last, and
+assert page overflow in the rendered DOM before PDF generation. Set `@page` to
+the configured size with zero margin, preserve background colour, and hide
+screen controls in print. Keep the preview usable on a narrow screen without
+letting screen width or scaling affect print geometry.
+
+Render a semantic document with a skip link, labelled controls, heading
+hierarchy, semantic lists, meaningful portrait alt text, and a Print / Save as
+PDF button. Label screen geometry honestly; display “PDF verified” only for a
+verification manifest whose input and output digests match the current build.
+Printing remains available even when advisory balance warnings exist.
 
 ## PDF verification contract
 
@@ -319,32 +356,34 @@ available in every status.
 
 1. validate data, build the current document, and generate a fresh PDF with the
    selected adapter;
-2. run the adapter's geometry checks for clipped elements, allowing only an
-   explicitly documented sub-pixel tolerance;
-3. assert configured PDF page dimensions and content-driven pagination, never
-   a fixed one-page-per-locale rule;
+2. run the adapter's geometry checks for clipped elements and planned-page
+   overflow, allowing only an explicitly documented sub-pixel tolerance and
+   reporting the first offending block plus overflow in millimetres;
+3. assert configured PDF page dimensions and an exact page-count match with the
+   accepted plan;
 4. inspect extracted text per page to reject nearly blank pages with a
    documented, conservative threshold and find locale-specific identity,
    section, and final-entry markers;
-5. render every page into an ignored verification directory for visual
-   inspection; and
-6. exit non-zero for any failed assertion and print the PDF and rendered-image
-   paths on success.
+5. render every page into an ignored verification directory and compose the
+   page PNGs, in order with visible page labels, into one contact-sheet image;
+   and
+6. exit non-zero for any failed assertion and print the PDF, page-image, contact
+   sheet, measurement JSON, and accepted-plan paths on success.
 
-Exercise the adapter with fixtures for one page, ordinary multi-page flow, an
-intentional page break, a nearly blank trailing page, a missing expected
-marker, clipped content, and custom paper dimensions. The failure fixtures must
-prove that `verify` exits non-zero for the intended reason.
+Exercise the adapter with fixtures for one page, ordinary multi-page plans, a
+nearly blank trailing page, a missing expected marker, clipped content, plan
+overflow, missing rendered output, and custom paper dimensions. Assert contact
+sheet page order and prove that every failure fixture exits non-zero for the
+intended reason.
 
-For the portable adapter, use print-mode DOM geometry to derive the expected
-page count, then use `pdfinfo`, `pdftotext`, and `pdftoppm` for steps 3-5. For
-the macOS-native adapter, use HTML overflow checks before printing, let WebKit's
-print operation determine pagination, then use PDFKit plus
-CoreGraphics/AppKit. Page size, page count, extracted text, and rendered pages
-inspect different failure modes; keep all of them. Expected text markers come
-from current CV data rather than private contact details or hard-coded sample
-copy. Report the resulting page count per locale; a multi-page CV is valid when
-its content requires it.
+For the portable adapter, use print-mode DOM geometry to validate every
+explicit page, then use `pdfinfo`, `pdftotext`, and `pdftoppm` for steps 3-5.
+For the macOS-native adapter, use HTML overflow checks before printing, then use
+PDFKit plus CoreGraphics/AppKit. Page size, plan/page-count equality, extracted
+text, rendered pages, and the contact sheet inspect different failure modes;
+keep all of them. Expected text markers come from current CV data rather than
+private contact details or hard-coded sample copy. Report the resulting page
+count per locale; a multi-page CV is valid when the accepted plan requires it.
 
 ## Native adapter troubleshooting
 
@@ -356,23 +395,32 @@ its content requires it.
 | Modal print API does not compile | Swift API | Use `runModal(for:delegate:didRun:contextInfo:)`. |
 | AppKit crashes during callback cleanup | Lifetime | Retain print objects and defer main-queue window cleanup. |
 | PDF grows rapidly or printing never completes | Runaway print | Keep the default print worker; enforce time and size limits. |
-| `check` disagrees after a forced CSS break | Model drift | Drive CSS and virtual probe offsets from shared break metadata. |
+| A planned page overflows after a content edit | Stale plan | Report the first offending block and overflow in mm, emit new candidates, and persist a reviewed replacement plan. |
 
 ## Update guide and hand-off
 
 ```zsh
 cp curriculum/private.example.yml curriculum/private.yml
 # Edit curriculum/data/, curriculum/private.yml, and curriculum/assets/.
+<cv-command> check <locale>
+<cv-command> plan <locale> --candidate <candidate-id>
 <cv-command> preview <locale>
 <host-build-command>
 git diff --check
 ```
 
-Document `build`, `check`, and `verify` as focused diagnostic and automation
-operations alongside the primary `preview` workflow.
+Document `build`, `check`, `plan`, and `verify` as focused maintenance,
+diagnostic, and automation operations alongside the primary `preview`
+workflow.
 
 Document the repository's actual commands and generated locations in
 `curriculum/README.md`; do not leave placeholders in the delivered workflow.
+Create a short `curriculum/PAGINATION.md` for later agents. Name the stable-ID
+field, page-plan path, prose and JSON check outputs, exact `check` and `plan`
+commands for remeasuring and accepting a candidate, overflow failure format,
+contact-sheet path, and the rule that typography or global spacing changes
+require a separate design decision. Keep architecture and setup rationale in
+this skill; keep only repository-specific maintenance facts in that guide.
 Keep the real private file and output ignored. Confirm a normal host build does
 not emit the CV unless publication was explicitly requested.
 
