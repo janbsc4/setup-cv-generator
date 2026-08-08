@@ -37,7 +37,11 @@ the system. It defines the portable file contract and the framework adapters.
 ## Workflow
 
 1. Inspect the repository's framework, build and preview commands, route or
-   page conventions, existing design tokens, fonts, and `git status`.
+   page conventions, existing design tokens, fonts, `git status`, and every
+   plausible legacy CV source. Identify the authoritative source before
+   migrating content, and record which configured locales have equivalent
+   source material. Preserve summary pages as summaries; do not expand them or
+   invent translations from a richer source in another locale.
 2. Ask whether A4 is the correct paper target or whether the user needs another
    size or orientation, unless they already specified it. Treat the answer as
    configuration shared by print CSS, PDF generation, verification, and the
@@ -51,13 +55,15 @@ the system. It defines the portable file contract and the framework adapters.
    optional progressive enhancement the document needs.
 5. Keep contact details and portrait local. Ignore the real private-data file,
    provide an example file, validate it before build, and confirm it is not
-   staged.
+   staged. Require email. Treat phone as optional: its display and `tel:` href
+   are either both blank or both present, and omit telephone markup when blank.
 6. Choose the smallest PDF adapter justified by the repository's operating
    environment. For a deliberately macOS-local workflow, prefer the native
    Swift/WebKit/PDFKit adapter in the reference when Apple developer tools are
    already present. For cross-platform or CI workflows, use the portable
    Playwright/Poppler adapter. Obtain approval before installing system
-   packages or downloading browser runtimes.
+   packages or downloading browser runtimes. Apply the native adapter's cache,
+   bridge, AppKit lifetime, and runaway-output safeguards as one contract.
 7. Add one dedicated CV command. It validates data before generation and
    exposes `build`, `check`, locale-aware `preview`, and `verify` operations
    without changing the repository's default build or navigation. `check` is a
@@ -65,14 +71,18 @@ the system. It defines the portable file contract and the framework adapters.
 8. As soon as real content and baseline print CSS render, run `check` for every
    locale, before visual polishing. Report the projected page count and name
    every major section that crosses a page boundary. Adjust intentional break
-   rules or the design with the user when the split reads poorly; do not shrink
-   content automatically or block native printing. Repeat after material
-   content or layout changes.
+   rules or the design with the user when the split reads poorly. Represent
+   every forced print break with shared markup that both CSS and `check` read.
+   After resolving splits, inspect page balance for excessive whitespace; do
+   not shrink content automatically or block native printing. Repeat after
+   material content or layout changes.
 9. Preserve the print contract: a configured `@page` size, zero print margins,
    colour preservation, controls hidden in print, content-driven pagination,
-   and a small safety margin inside each page. An advisory layout check may
-   report clipping or awkward breaks, while Print / Save as PDF always invokes
-   native printing.
+   and a small safety margin inside each page. Parse paper width, height,
+   orientation, and safety margin once; derive HTML/CSS, the layout probe, PDF
+   generation, verification, and documentation from that shared
+   configuration. An advisory layout check may report clipping or awkward
+   breaks, while Print / Save as PDF always invokes native printing.
 10. Run `verify` for the combined document or every configured locale, the host
    project's relevant build, and `git diff --check`. Inspect the rendered page
    images. Report generated-PDF checks separately from native Safari/browser

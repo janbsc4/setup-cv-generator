@@ -58,8 +58,9 @@ verifies the PDF, and, where supported, provides a locale-aware preview.
 5. It separates private contact data and the portrait from the shared CV
    content. The real private-data file and generated output are ignored by
    Git; an example file explains the required shape.
-6. It installs Playwright/Chromium as project development tooling and checks
-   for Poppler's PDF utilities (asking before a system-package install).
+6. It chooses either a macOS-native WebKit/PDFKit adapter or a portable
+   Playwright/Poppler adapter from the repository's real operating
+   environment, asking before downloads or system-package installs.
 7. Once real content first renders, it runs a fast print-layout check for every
    locale. The check reports projected page count and names any major section
    that crosses a page boundary, before visual polishing makes rework costly.
@@ -89,9 +90,10 @@ measurement powers an early command-line check that reports total projected
 pages and major sections split across pages. The status distinguishes advisory
 browser geometry from a PDF actually verified by the command.
 
-Playwright generates a reproducible print-CSS PDF. Poppler then checks its page
-dimensions, content-derived page count, and extracted text and renders every
-page for inspection. Verification fails for a size or page-count mismatch,
+The selected adapter generates a reproducible print-CSS PDF. PDFKit on the
+native path or Poppler on the portable path then checks its page dimensions,
+content-derived page count, and extracted text and renders every page for
+inspection. Verification fails for a size or page-count mismatch,
 unintentionally blank pages, missing expected text, or clipped content. Native
 Safari/browser preview remains a useful separate renderer check.
 

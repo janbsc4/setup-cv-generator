@@ -1,5 +1,25 @@
 # Portable CV generator reference
 
+## Source discovery
+
+Before creating the file contract, inventory existing CV sources: public HTML
+pages, structured data, source documents, and tracked PDFs. Name one
+authoritative source for each configured locale. A public page may be an
+intentional summary while a PDF contains the full history; preserve that
+distinction instead of merging by assumption.
+
+For a legacy PDF, extract selectable text in this order:
+
+1. use Poppler (`pdftotext`) or PDFKit when already available;
+2. otherwise use Ghostscript's `txtwrite` device when available; and
+3. ask the user for source content when extraction is incomplete, garbled, or
+   otherwise untrustworthy.
+
+Compare the extracted text with rendered pages before treating it as
+authoritative. Record locale coverage explicitly. Configure only the locales
+with equivalent source material unless the user supplies or approves a
+translation.
+
 ## File contract
 
 Use `curriculum/` as the complete human-editable boundary. Keep files that the
@@ -33,7 +53,9 @@ Give each locale file a shallow, readable schema containing:
   start, and end fields.
 
 Validate parseability, required meaningful text, and stable cross-locale IDs.
-Validate that telephone and email links use `tel:` and `mailto:` and that the
+Require email and validate its `mailto:` link. Phone is optional: require its
+display and href fields to be both blank or both present, validate `tel:` only
+when present, and render no telephone link when blank. Confirm that the
 portrait resolves inside the repository. Make every schema change in the
 renderer, every locale file, example private file when applicable, and
 validator together.
@@ -42,8 +64,8 @@ Keep the private file ignored and provide this editable shape:
 
 ```yaml
 phone:
-  display: "+34 600 000 000"
-  href: "tel:+34600000000"
+  display: "" # Optional; fill both phone fields or leave both blank.
+  href: ""
 email:
   display: "name@example.com"
   href: "mailto:name@example.com"
@@ -91,6 +113,57 @@ paginate on the AppKit event loop. Configure `NSPrintInfo` from the shared paper
 configuration, save without showing panels, and keep native Print / Save as PDF
 available in the HTML.
 
+Run Swift with both module caches directed to a dedicated temporary directory,
+especially in a managed environment:
+
+```zsh
+cv_cache_dir="${TMPDIR:-/tmp}/cv-swift-module-cache"
+mkdir -p "$cv_cache_dir"
+SWIFT_MODULECACHE_PATH="$cv_cache_dir" \
+  CLANG_MODULE_CACHE_PATH="$cv_cache_dir" \
+  xcrun swift script/cv_pdf.swift
+```
+
+A `WKWebView` still needs AppKit, font, LaunchServices, Web Inspector, and GPU
+services. If loading or measurement stalls under a filesystem sandbox, request
+approval and retry the same command with native GUI access. Treat the stall as
+an environment failure, not evidence of a layout defect.
+
+Await fonts and images with `callAsyncJavaScript`, return a JSON string, and
+decode that string in Swift. Returning a Promise or nested JavaScript object
+directly across the bridge is unreliable across SDK versions:
+
+```swift
+webView.callAsyncJavaScript(
+    """
+    await document.fonts.ready;
+    await Promise.all([...document.images].map(image => image.complete
+      ? Promise.resolve()
+      : new Promise(resolve => image.addEventListener("load", resolve,
+          { once: true }))));
+    return JSON.stringify(window.cvPrintLayout());
+    """,
+    arguments: [:],
+    in: nil,
+    in: .page
+) { result in
+    // Decode the returned String with JSONSerialization.
+}
+```
+
+Start printing with Swift's imported
+`runModal(for:delegate:didRun:contextInfo:)`; the Objective-C selector
+`runOperationModalForWindow:...` does not import as `runOperationModal(...)`.
+Keep the web view, off-screen window, print operation, and delegate alive until
+the completion callback finishes. Capture verification state on the main
+queue, then close the window on the main queue after a short asynchronous
+delay; closing it synchronously from AppKit's completion stack can crash.
+
+Leave `NSPrintOperation.canSpawnSeparateThread` at its default. Forcing it off
+can hang printing and grow an intermediate PDF without bound. Apply both an
+elapsed-time limit and an output-size limit; on breach, stop generation, remove
+only the known generated artifact, and report the guard that fired.
+
 Verify the resulting PDF with PDFKit: assert media-box dimensions and page
 content, normalize compatibility characters before matching CJK text, reject
 interior blank pages, and use CoreGraphics/AppKit to render every page to PNG.
@@ -130,9 +203,12 @@ Print / Save as PDF button.
 
 Before implementation, ask whether A4 is the correct target or whether the user
 needs another paper size or orientation, unless the request already says. Store
-that choice once and use it for `@page`, Playwright generation, verification,
-preview labels, and hand-off instructions. Support named sizes such as A4,
-Letter, or Legal and explicit dimensions for a custom target.
+paper width, height, orientation, and internal safety margin once. Generate or
+inject the corresponding CSS custom properties and `@page` rule, and use the
+same parsed values in the layout probe, PDF adapter, verification, preview
+labels, and hand-off instructions. Support named sizes such as A4, Letter, or
+Legal and explicit dimensions for a custom target. Add a fixture using custom
+dimensions so an A4 literal in any adapter causes verification to fail.
 
 Set `@page` to the configured size with zero margin. Give page content a small
 internal safety margin, but do not constrain the complete CV to one page or
@@ -153,6 +229,13 @@ before typography and spacing are polished, and repeat it after material
 content or layout changes. Its output must distinguish a normal multi-page flow
 from a major-section split so the user can judge whether a deliberate break is
 better.
+
+Ordinary DOM coordinates do not reflect forced print breaks. Put deliberate
+break metadata in markup, for example `data-cv-break-before="page"`; let print
+CSS select that attribute and make the probe add the corresponding virtual page
+offset. After major sections no longer split, inspect the rendered pages for
+balance. A valid boundary that leaves most of a page blank should move to a
+better semantic boundary when one exists.
 
 The fit script also reports clipping and awkward page breaks at the normal
 density. Apply a bounded compact density only when the user wants a denser
@@ -185,6 +268,11 @@ available in every status.
 6. exit non-zero for any failed assertion and print the PDF and rendered-image
    paths on success.
 
+Exercise the adapter with fixtures for one page, ordinary multi-page flow, an
+intentional page break, a nearly blank trailing page, a missing expected
+marker, clipped content, and custom paper dimensions. The failure fixtures must
+prove that `verify` exits non-zero for the intended reason.
+
 For the portable adapter, use print-mode DOM geometry to derive the expected
 page count, then use `pdfinfo`, `pdftotext`, and `pdftoppm` for steps 3-5. For
 the macOS-native adapter, use HTML overflow checks before printing, let WebKit's
@@ -194,6 +282,18 @@ inspect different failure modes; keep all of them. Expected text markers come
 from current CV data rather than private contact details or hard-coded sample
 copy. Report the resulting page count per locale; a multi-page CV is valid when
 its content requires it.
+
+## Native adapter troubleshooting
+
+| Symptom | Classification | Required response |
+| --- | --- | --- |
+| Swift cannot write its module cache | Environment | Set both Swift and Clang module-cache paths to the dedicated temporary cache. |
+| WebKit load or probe stalls with service denials | Environment | Retry with approved native GUI access. |
+| JavaScript reports an unsupported result type | Bridge | Use `callAsyncJavaScript`, return `JSON.stringify(...)`, and decode the string. |
+| Modal print API does not compile | Swift API | Use `runModal(for:delegate:didRun:contextInfo:)`. |
+| AppKit crashes during callback cleanup | Lifetime | Retain print objects and defer main-queue window cleanup. |
+| PDF grows rapidly or printing never completes | Runaway print | Keep the default print worker; enforce time and size limits. |
+| `check` disagrees after a forced CSS break | Model drift | Drive CSS and virtual probe offsets from shared break metadata. |
 
 ## Update guide and hand-off
 
