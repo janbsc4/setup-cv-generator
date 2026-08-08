@@ -65,9 +65,12 @@ the system. It defines the portable file contract and the framework adapters.
    packages or downloading browser runtimes. Apply the native adapter's cache,
    bridge, AppKit lifetime, and runaway-output safeguards as one contract.
 7. Add one dedicated CV command. It validates data before generation and
-   exposes `build`, `check`, locale-aware `preview`, and `verify` operations
+   exposes `build`, `check`, `verify`, and locale-aware `preview` operations
    without changing the repository's default build or navigation. `check` is a
-   fast print-layout probe; `verify` must generate and test the actual PDF.
+   fast print-layout probe; `verify` generates and tests the actual PDF;
+   `preview` validates, builds the HTML, checks layout, generates and verifies
+   a fresh PDF, then opens that PDF. Advisory layout findings do not block
+   opening; a build, generation, or verification failure does.
 8. As soon as real content and baseline print CSS render, run `check` for every
    locale, before visual polishing. Report the projected page count and name
    every major section that crosses a page boundary. Adjust intentional break
@@ -93,7 +96,8 @@ the system. It defines the portable file contract and the framework adapters.
 The system is complete when the dedicated CV command validates private and
 content data, reports projected pagination and major-section splits early,
 produces and verifies a complete PDF for every configured locale at the chosen
-paper size, and leaves the host site's default build unchanged.
+paper size, opens only a successfully verified PDF from `preview`, and leaves
+the host site's default build unchanged.
 Verification fails on a page-size or content-derived page-count mismatch, an
 unintentionally blank page, missing expected text, or clipped print content.
 A person can replace career content, contact details, and portrait by editing

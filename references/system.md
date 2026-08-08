@@ -88,10 +88,41 @@ package manager, or language.
   uses its tokens and locally available fonts.
 
 Name the dedicated command for the repository's conventions (for example,
-`bin/cv`, `npm run cv`, or `make cv`). It must validate before generation,
-provide a locale-aware preview when the environment supports it, and expose
-`check` and `verify` operations. `check` quickly measures print layout without
-claiming PDF verification; `verify` generates and independently tests the PDF.
+`bin/cv`, `npm run cv`, or `make cv`) and give it this operation contract:
+
+- `build [locale]` validates data and produces the HTML source;
+- `check [locale]` builds as needed and measures print layout without claiming
+  PDF verification;
+- `verify [locale]` builds HTML, generates a fresh PDF, and independently tests
+  that PDF; and
+- `preview [locale]` performs the build, advisory check, PDF generation, and
+  verification stages, then opens the verified PDF in the platform's native
+  viewer.
+
+Implement `preview` as one pipeline over a single fresh HTML artifact rather
+than repeatedly invoking the other subcommands. Print advisory `check`
+findings and continue; stop before opening for validation, build, generation,
+or verification failures. Open only the PDF from the current successful run.
+
+When exactly one locale is configured, let `preview` omit the locale. When
+several are configured, require one and list the valid values for a missing or
+unknown locale before building. Open exactly that locale's PDF. Use the
+platform opener (`open` on macOS, `xdg-open` on Linux, or `cmd /c start ""` on
+Windows) when the environment supports desktop launching. Request approval
+when a managed environment requires native GUI access. If launching fails,
+preserve and print the verified PDF path while returning a preview-stage
+failure.
+
+Keep the generated HTML available as an intermediate artifact for design and
+renderer debugging. Browser Print / Save as PDF remains an optional escape
+hatch and a separate interactive-renderer check, not a routine generation
+step.
+
+Test `preview` with a successful single-locale run without an argument, an
+explicit locale in a multilingual setup, and missing and unknown multilingual
+locale arguments. Prove that advisory layout findings still open the verified
+PDF, each hard pipeline failure prevents viewer launch, and an opener failure
+reports the preserved verified artifact.
 
 ## PDF adapter choice
 
@@ -300,21 +331,22 @@ its content requires it.
 ```zsh
 cp curriculum/private.example.yml curriculum/private.yml
 # Edit curriculum/data/, curriculum/private.yml, and curriculum/assets/.
-<cv-command> build
-<cv-command> check
-<cv-command> verify
 <cv-command> preview <locale>
 <host-build-command>
 git diff --check
 ```
+
+Document `build`, `check`, and `verify` as focused diagnostic and automation
+operations alongside the primary `preview` workflow.
 
 Document the repository's actual commands and generated locations in
 `curriculum/README.md`; do not leave placeholders in the delivered workflow.
 Keep the real private file and output ignored. Confirm a normal host build does
 not emit the CV unless publication was explicitly requested.
 
-Advise the human to select the configured paper size and orientation, scale
-100%, no margins, and background graphics in the native print dialog.
-Generated-PDF verification through the selected adapter is the repeatable
-handoff gate. Native Safari or browser preview remains a separate renderer
-check, so report it only after it was actually inspected.
+For optional browser-print inspection, advise the human to select the
+configured paper size and orientation, scale 100%, no margins, and background
+graphics in the native print dialog. Generated-PDF verification through the
+selected adapter is the repeatable handoff gate. Native Safari or browser
+preview remains a separate renderer check, so report it only after it was
+actually inspected.

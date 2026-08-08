@@ -42,7 +42,8 @@ edits day to day.
 It also adds one dedicated command appropriate to the repository, such as
 `bin/cv`, `npm run cv`, or `make cv`. That command validates the CV data,
 checks projected pagination and major-section splits early, generates and
-verifies the PDF, and, where supported, provides a locale-aware preview.
+verifies the PDF, and provides a locale-aware `preview` operation that opens
+the verified PDF in the platform's native viewer.
 
 ## How it works
 
@@ -64,9 +65,9 @@ verifies the PDF, and, where supported, provides a locale-aware preview.
 7. Once real content first renders, it runs a fast print-layout check for every
    locale. The check reports projected page count and names any major section
    that crosses a page boundary, before visual polishing makes rework costly.
-8. It validates every locale, generates and independently checks the actual
-   PDF, renders every sheet for inspection, runs the host project's relevant
-   build, checks the diff, and reports what was verified.
+8. Its `preview` operation validates and builds the HTML, reports advisory
+   layout findings, generates and independently checks the actual PDF, and
+   opens that PDF only after verification succeeds.
 
 The skill checks `origin/main` only when the user specifically asks to update
 the skill. If a newer revision exists, it asks before changing the installed
@@ -83,9 +84,9 @@ renderers. The paper size and orientation come from the setup choice. Content
 flows onto additional pages when needed; the generator does not compress every
 CV into one page.
 
-On screen, it offers language switching, a fit status, and a **Print / Save as
-PDF** button. The fit check can warn about clipping or awkward page breaks, but
-printing always continues through the browser's native print dialog. The same
+On screen, the HTML offers language switching, a fit status, and a **Print /
+Save as PDF** escape hatch. Routine use does not require manual browser
+printing: `preview` generates, verifies, and opens the PDF directly. The same
 measurement powers an early command-line check that reports total projected
 pages and major sections split across pages. The status distinguishes advisory
 browser geometry from a PDF actually verified by the command.
@@ -105,16 +106,18 @@ for that repository. The workflow normally looks like this:
 ```zsh
 cp curriculum/private.example.yml curriculum/private.yml
 # Edit curriculum/data/, curriculum/private.yml, and curriculum/assets/.
-<cv-command> build
-<cv-command> check
-<cv-command> verify
 <cv-command> preview <locale>
 <host-build-command>
 git diff --check
 ```
 
-For native printing, select the configured paper size and orientation, 100%
-scale, no margins, and background graphics in the system print dialog.
+Use `build`, `check`, and `verify` separately for focused debugging or
+automation. With one configured locale, `preview` may omit the locale. With
+multiple locales, it requires one and lists the valid choices when omitted.
+
+For optional browser-print inspection, select the configured paper size and
+orientation, 100% scale, no margins, and background graphics in the system
+print dialog.
 
 ## When to use it
 
