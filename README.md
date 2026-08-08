@@ -1,15 +1,17 @@
 # Local CV generator skill
 
-`setup-cv-generator` equips an existing website repository with a local,
-editable CV workflow. It produces a paginated CV or PDF for the chosen paper
+`setup-cv-generator` is a skill for a coding agent. While initial setup of the CV geneator requires an agent, after initial setup the CV can be updated manually. 
+
+This skill equips an existing website repository with a local,
+editable CV workflow. It produces a paginated CV PDF for the chosen paper
 size while preserving the site's visual language and leaving its normal build
 and navigation alone.
 
 It is intended for a CV that is maintained alongside a site but is not
-automatically published. The person maintaining it should be able to update
-career content, contact details, and a portrait without changing templates or
-application code.
+automatically published. The person maintaining is able to update  
+career content, contact details, and a portrait without requirent an active AI agent subscription.
 
+> [!CAUTION]
 > **Important — install the skill outside the website repository.** Keep this
 > Git checkout in your agent's skills directory. On macOS, use
 > `/Users/<username>/.agents/skills/setup-cv-generator` by default; on other
