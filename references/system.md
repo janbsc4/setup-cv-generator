@@ -275,15 +275,36 @@ better.
 Ordinary DOM coordinates do not reflect forced print breaks. Put deliberate
 break metadata in markup, for example `data-cv-break-before="page"`; let print
 CSS select that attribute and make the probe add the corresponding virtual page
-offset. After major sections no longer split, inspect the rendered pages for
-balance. A valid boundary that leaves most of a page blank should move to a
-better semantic boundary when one exists.
+offset.
+
+After modelling those breaks, calculate the unused printable height below the
+last content block on every page except the final page of each locale or
+document. More than 20% unused height is an advisory balance warning. Report
+the percentage, the first block on the following page, and whether a forced
+break, `break-inside` rule, heading keep rule, or natural overflow kept it
+there. Rebalance in this order:
+
+1. remove or move an unnecessary forced break;
+2. let a long section cross the page between entries while keeping each short
+   entry intact;
+3. narrow an overly broad `break-inside: avoid` rule; and
+4. move the boundary to the next sensible semantic point.
+
+Keep each heading with its first item and avoid orphan headings, widowed lines,
+clipping, and splits inside short entries. Preserve the established font sizes
+and normal spacing; fill pages by improving content flow rather than globally
+compressing typography or stretching whitespace. When no block can move safely,
+retain the whitespace and report why it is preferable. Exercise this balance
+model with a forced break that leaves more than 20% unused height, an oversized
+`break-inside: avoid` wrapper, a section that can split cleanly between entries,
+and a case where readability requires retaining the space.
 
 The fit script also reports clipping and awkward page breaks at the normal
 density. Apply a bounded compact density only when the user wants a denser
-design, not automatically to force a target page count. Its outcome is
-informational: call `window.print()` after measuring even if the layout may be
-imperfect. Never turn an imperfect measurement into a print block.
+design, not automatically to force a target page count or fill a sparse page.
+Its outcome is informational: call `window.print()` after measuring even if
+the layout may be imperfect. Never turn an imperfect measurement into a print
+block.
 
 Label screen-only geometry honestly, for example “Fit looks safe; PDF not
 verified.” The page may display “PDF verified” only when `verify` has tested an

@@ -76,9 +76,12 @@ the system. It defines the portable file contract and the framework adapters.
    every major section that crosses a page boundary. Adjust intentional break
    rules or the design with the user when the split reads poorly. Represent
    every forced print break with shared markup that both CSS and `check` read.
-   After resolving splits, inspect page balance for excessive whitespace; do
-   not shrink content automatically or block native printing. Repeat after
-   material content or layout changes.
+   After resolving splits, measure the unused printable tail on every non-final
+   page. Warn above 20%, name the first following block and why it stayed off
+   the page, and attempt the semantic rebalancing sequence in the reference.
+   Preserve normal typography and spacing; retain the whitespace when moving
+   content would harm readability. Repeat after material content or layout
+   changes.
 9. Preserve the print contract: a configured `@page` size, zero print margins,
    colour preservation, controls hidden in print, content-driven pagination,
    and a small safety margin inside each page. Parse paper width, height,
