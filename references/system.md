@@ -251,6 +251,17 @@ boundaries, never after the final content. Hide screen controls in print and
 preserve background colour. Keep controls usable on a narrow screen even when
 the paper preview itself scrolls horizontally.
 
+Keep screen and print geometry separate. When the screen preview uses a
+`min-width` wider than the configured paper, reset `html` and `body` to the
+configured page width and `min-width: 0` in both `@media print` and the
+JavaScript print-probe mode. Audit other screen-only width and scaling rules in
+both modes at the same time. Give `html`, `body`, the print canvas, and `@page`
+the same page-surface colour so exposed areas do not contrast, while treating
+an unpainted edge strip as a geometry problem first: a painted-width ratio that
+matches the screen constraint indicates shrink-to-fit. Add a regression fixture
+whose screen root is wider than the paper and assert that both print and probe
+root widths equal the configured page width.
+
 The fit script measures after fonts and images resolve. Mark each major section
 with a stable selector such as `data-cv-section`. For every locale, calculate
 the projected page count from the configured printable page height and report
@@ -346,7 +357,9 @@ not emit the CV unless publication was explicitly requested.
 
 For optional browser-print inspection, advise the human to select the
 configured paper size and orientation, scale 100%, no margins, and background
-graphics in the native print dialog. Generated-PDF verification through the
-selected adapter is the repeatable handoff gate. Native Safari or browser
-preview remains a separate renderer check, so report it only after it was
-actually inspected.
+graphics in the native print dialog. Refresh the built HTML before printing and
+inspect every edge of every page, especially later pages, for shrink-to-fit or
+exposed-background strips. Generated-PDF verification through the selected
+adapter is the repeatable handoff gate. Native Safari or browser preview
+remains a separate renderer check, so report it only after it was actually
+inspected.
